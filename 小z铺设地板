@@ -1,0 +1,133 @@
+-- 小Z地板铺设器（纯文字颜色名版）2026-01-27
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+WindUI.TransparencyValue = 0.2
+WindUI:SetTheme("Dark")
+
+local Window = WindUI:CreateWindow({
+    Title = "小Z地板铺设器",
+    Icon = "palette",
+    Author = "小Z",
+    Folder = "XiaoZ",
+    Size = UDim2.fromOffset(600, 520),
+    SideBarWidth = 200,
+    ScrollBarEnabled = true
+})
+Window:Tag({Title = "1.0", Color = Color3.fromHex("#306aff")})
+local Tab = Window:Tab({Title = "铺设", Icon = "cube"})
+
+-- 配置
+local cfg = {
+    anchored  = true,
+    radius    = 16,
+    side      = 32,
+    interval  = 0.3,
+    repeatMode= "off",
+    colorName = "Bright yellow"   -- 只存文字
+}
+
+-- 通用 1×1×1 块
+local function tile(pos)
+    local p = Instance.new("Part")
+    p.Size = Vector3.new(1, 1, 1)
+    p.Anchored = cfg.anchored
+    p.TopSurface = Enum.SurfaceType.Smooth
+    p.BottomSurface = Enum.SurfaceType.Smooth
+    p.BrickColor = BrickColor.new(cfg.colorName)   -- 纯文字
+    p.CFrame = CFrame.new(pos)
+    p.Parent = workspace
+end
+
+local function basePos()
+    local lp = game:GetService("Players").LocalPlayer
+    local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    return root and root.Position or Vector3.new(0, 10, 0)
+end
+
+local function circleOnce()
+    local r = cfg.radius
+    local bp = basePos()
+    for x = -r, r do
+        for z = -r, r do
+            if x*x + z*z <= r*r then tile(bp + Vector3.new(x, 0, z)) end
+        end
+    end
+end
+
+local function squareOnce()
+    local s = cfg.side
+    local bp = basePos()
+    for x = -s, s do
+        for z = -s, s do tile(bp + Vector3.new(x, 0, z)) end
+    end
+end
+
+local function singleBrick()
+    tile(basePos() + Vector3.new(math.random(-8, 8), 0, math.random(-8, 8)))
+end
+
+-- 重复生成协程
+local repeater = nil
+local function setRepeat(mode)
+    if repeater then task.cancel(repeater); repeater = nil end
+    cfg.repeatMode = mode
+    if mode == "off" then return end
+    repeater = task.spawn(function()
+        while cfg.repeatMode == mode do
+            if mode == "circle" then circleOnce()
+            elseif mode == "square" then squareOnce()
+            elseif mode == "single" then singleBrick() end
+            task.wait(cfg.interval)
+        end
+    end)
+end
+
+-- ====== UI ======
+Tab:Button({Title = "生成单砖", Callback = singleBrick})
+
+Tab:Button({Title = "铺设圆形地板", Callback = circleOnce})
+Tab:Toggle({Title = "重复生成圆形", Default = false, Callback = function(v) setRepeat(v and "circle" or "off") end})
+
+Tab:Button({Title = "铺设正方形地板", Callback = squareOnce})
+Tab:Toggle({Title = "重复生成正方形", Default = false, Callback = function(v) setRepeat(v and "square" or "off") end})
+
+Tab:Toggle({Title = "重复生成单砖", Default = false, Callback = function(v) setRepeat(v and "single" or "off") end})
+
+-- ★ 纯文字颜色输入框
+Tab:Input({
+    Title = "砖块颜色选择",
+    Desc = "输入 BrickColor 名字，如：Bright yellow、Really blue、Lime green",
+    Value = cfg.colorName,
+    Type = "Input",
+    Placeholder = "例：Bright yellow",
+    Callback = function(str)
+        -- 简单容错：去掉多余空格
+        str = str:gsub("%s+", " "):match("^%s*(.-)%s*$")
+        -- 验证是否存在
+        local ok, col = pcall(function() return BrickColor.new(str) end)
+        if not ok then
+            WindUI:Notify({Title = "颜色名错误", Content = "请检查拼写或换用官方 BrickColor 名字", Duration = 3})
+            return
+        end
+        cfg.colorName = str
+        singleBrick() -- 立即生成一块验证
+        WindUI:Notify({Title = "颜色已更新", Content = "新颜色已生效并生成示例砖块", Duration = 2})
+    end
+})
+
+Tab:Toggle({Title = "未固定（取消锚定）", Default = false, Callback = function(v) cfg.anchored = not v end})
+
+Tab:Slider({Title = "圆形半径", Step = 1, Value = {Min = 4, Max = 64, Default = cfg.radius}, Callback = function(v) cfg.radius = v end})
+Tab:Slider({Title = "正方形半宽", Step = 1, Value = {Min = 4, Max = 64, Default = cfg.side}, Callback = function(v) cfg.side = v end})
+Tab:Slider({Title = "重复间隔 (秒)", Step = 0.1, Value = {Min = 0.1, Max = 2, Default = cfg.interval}, Callback = function(v) cfg.interval = v end})
+
+Tab:Button({Title = "清理所有地板", Callback = function()
+    for _,v in ipairs(workspace:GetChildren()) do
+        if v:IsA("Part") and v.Size == Vector3.new(1,1,1) and v.TopSurface == Enum.SurfaceType.Smooth then
+            v:Destroy()
+        end
+    end
+    WindUI:Notify({Title = "清理完成", Duration = 2})
+end})
+
+WindUI:Notify({Title = "小Z地板铺设器", Content = "脚本已加载，Enjoy!", Duration = 3})
+
